@@ -1,48 +1,59 @@
 import os
-import asyncio
+import aiohttp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiohttp import web
 
-# Стани для діалогу
-class OrderStates(StatesGroup):
-    waiting_for_payment = State()
-    waiting_for_contact = State()
-    waiting_for_address = State()
-
+# Налаштування
 TOKEN = os.getenv('TOKEN')
+API_KEY = os.getenv('MAXELPAY_API_KEY')
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
+# Стани
+class Order(StatesGroup):
+    waiting_for_contact = State()
+    waiting_for_address = State()
+
+# 1. Функція створення інвойсу через API MaxelPay
+async def create_invoice(amount, user_id):
+    url = "https://api.maxelpay.com/invoices" # Перевірте правильність URL у доці
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+    payload = {"amount": amount, "currency": "USD", "description": f"Замовлення від {user_id}"}
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload, headers=headers) as resp:
+            data = await resp.json()
+            return data.get('payment_url')
+
 @dp.message(Command("start"))
-async def start_handler(message: types.Message):
-    await message.answer("Привіт! Натисни /pay, щоб отримати посилання на оплату.")
+async def start(message: types.Message):
+    await message.answer("Привіт! Натисніть /pay для оплати.")
 
 @dp.message(Command("pay"))
-async def pay_handler(message: types.Message, state: FSMContext):
-    # Тут ви будете викликати API MaxelPay для генерації посилання
-    payment_url = "https://maxelpay.example.com/pay/12345" # Приклад
-    await message.answer(f"Ось ваше посилання на оплату: {payment_url}\nПісля оплати напишіть свій номер телефону.")
-    await state.set_state(OrderStates.waiting_for_contact)
+async def pay(message: types.Message, state: FSMContext):
+    link = await create_invoice(10.00, message.from_user.id)
+    await message.answer(f"Ось ваше посилання: {link}\nПісля оплати напишіть ваш номер телефону.")
+    await state.set_state(Order.waiting_for_contact)
 
-@dp.message(OrderStates.waiting_for_contact)
-async def get_contact(message: types.Message, state: FSMContext):
+@dp.message(Order.waiting_for_contact)
+async def get_phone(message: types.Message, state: FSMContext):
     await state.update_data(phone=message.text)
-    await message.answer("Дякую! Тепер напишіть вашу адресу доставки.")
-    await state.set_state(OrderStates.waiting_for_address)
+    await message.answer("Дякую! Тепер надішліть адресу доставки.")
+    await state.set_state(Order.waiting_for_address)
 
-@dp.message(OrderStates.waiting_for_address)
-async def get_address(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    phone = data['phone']
-    address = message.text
-    await message.answer(f"Замовлення прийнято!\nТелефон: {phone}\nАдреса: {address}\nМи скоро зв'яжемося!")
-    await state.clear()
+# Webhook для MaxelPay (потрібен для отримання сповіщень про оплату)
+async def handle_webhook(request):
+    data = await request.json()
+    # Логіка обробки оплати (наприклад, перевірка статусу)
+    return web.Response(status=200)
 
-async def main():
-    await dp.start_polling(bot)
-
+# Запуск
 if __name__ == "__main__":
-    asyncio.run(main())
+    app = web.Application()
+    app.router.add_post('/webhook', handle_webhook)
+    # Потрібно запускати і бота, і веб-сервер одночасно
+    # (Це просунутий крок, почнемо з перевірки `/pay`)

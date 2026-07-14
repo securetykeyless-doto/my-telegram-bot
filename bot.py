@@ -6,11 +6,14 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiohttp import web
 
 # --- КОНФІГУРАЦІЯ ---
 TOKEN = os.getenv('TOKEN')
 API_KEY = os.getenv('MAXELPAY_API_KEY')
-ADMIN_ID = 7749452087 
+ADMIN_ID = 7749452087
+# ВАЖЛИВО: Замініть my-telegram-bot-zqlr на ваш реальний ID проєкту на Render
+WEBHOOK_URL = f"https://my-telegram-bot-zqlr.onrender.com/{TOKEN}"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -58,7 +61,6 @@ async def check_payment(callback: types.CallbackQuery, state: FSMContext):
 @dp.message(Order.waiting_for_vin)
 async def get_vin(message: types.Message, state: FSMContext):
     vin = message.text
-    # Повідомляємо адміну
     await bot.send_message(
         ADMIN_ID, 
         f"New order from {message.from_user.id} (@{message.from_user.username or 'No username'}).\nVIN: {vin}"
@@ -66,7 +68,6 @@ async def get_vin(message: types.Message, state: FSMContext):
     await message.answer("VIN received! Processing... Please wait for your PIN-code.")
     await state.clear()
 
-# --- ВІДПОВІДЬ КЛІЄНТУ ---
 @dp.message(Command("reply"))
 async def reply_to_client(message: types.Message):
     if message.from_user.id == ADMIN_ID:
@@ -74,24 +75,17 @@ async def reply_to_client(message: types.Message):
         if len(args) < 3:
             await message.answer("Usage: /reply [client_id] [pin]")
             return
-        
-        client_id = args[1]
-        pin = args[2]
+        client_id, pin = args[1], args[2]
         try:
             await bot.send_message(client_id, f"Your PIN-code is: {pin}")
             await message.answer(f"PIN sent to {client_id} successfully.")
         except Exception as e:
-            await message.answer(f"Error sending message: {e}")
+            await message.answer(f"Error: {e}")
 
 async def create_maxelpay_session(order_id, amount):
     url = "https://api.maxelpay.com/api/v1/payments/sessions"
     headers = {'X-API-KEY': API_KEY, 'Content-Type': 'application/json'}
-    payload = {
-        "orderId": order_id, 
-        "amount": float(amount), 
-        "currency": "USD", 
-        "description": "VIN to PIN"
-    }
+    payload = {"orderId": order_id, "amount": float(amount), "currency": "USD", "description": "VIN to PIN"}
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload, headers=headers) as resp:
@@ -100,8 +94,17 @@ async def create_maxelpay_session(order_id, amount):
     except Exception:
         return None
 
-async def main():
-    await dp.start_polling(bot)
+# --- WEBHOOK ЛОГІКА ---
+async def handle_webhook(request):
+    update = await request.json()
+    await dp.feed_update(bot, types.Update(**update))
+    return web.Response(status=200)
+
+async def on_startup():
+    await bot.set_webhook(WEBHOOK_URL)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    app = web.Application()
+    app.router.add_post(f"/{TOKEN}", handle_webhook)
+    asyncio.run(on_startup())
+    web.run_app(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))

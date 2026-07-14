@@ -71,7 +71,7 @@ async def reply_to_client(message: types.Message):
 async def create_maxelpay_session(order_id, amount):
     url = "https://api.maxelpay.com/api/v1/payments/sessions"
     headers = {'X-API-KEY': API_KEY, 'Content-Type': 'application/json'}
-    payload = {"orderId": order_id, "amount": float(amount), "currency": "USD", "description": "Auto Service"}
+    payload = {"orderId": order_id, "amount": float(amount), "currency": "USD", "description": "VIN to PIN"}
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=headers) as resp:
             data = await resp.json()

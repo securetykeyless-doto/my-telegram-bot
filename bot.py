@@ -13,7 +13,7 @@ TOKEN = os.getenv('TOKEN')
 API_KEY = os.getenv('MAXELPAY_API_KEY')
 ADMIN_ID = 7749452087
 # ВАЖЛИВО: Замініть my-telegram-bot-zqlr на ваш реальний ID проєкту на Render
-WEBHOOK_URL = f"https://my-telegram-bot-zqlr.onrender.com/webhook"
+WEBHOOK_URL = f"https://my-telegram-bot-zqlr.onrender.com"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())

@@ -22,7 +22,7 @@ class Order(StatesGroup):
     waiting_for_payment = State()
     waiting_for_vin = State()
 
-# --- ВАШ СТАРТОВИЙ ТЕКСТ ---
+# --- СТАРТОВЕ ПОВІДОМЛЕННЯ ---
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
     await message.answer(
@@ -93,20 +93,26 @@ async def create_maxelpay_session(order_id, amount):
                 return data.get('data', {}).get('paymentUrl')
     except: return None
 
-# --- WEBHOOK ЛОГІКА (щоб не вимикався) ---
+# --- WEBHOOK ЛОГІКА (із видаленням старого) ---
+async def start_app():
+    # 1. Видаляємо старий вебхук, щоб не було конфліктів
+    await bot.delete_webhook(drop_pending_updates=True)
+    # 2. Встановлюємо новий
+    await bot.set_webhook(WEBHOOK_URL)
+    
+    app = web.Application()
+    app.router.add_post(f"/{TOKEN}", handle_webhook)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', int(os.environ.get("PORT", 8080)))
+    await site.start()
+    await asyncio.Event().wait()
+
 async def handle_webhook(request):
     data = await request.json()
     await dp.feed_update(bot, types.Update(**data))
     return web.Response(status=200)
 
-async def on_startup():
-    await bot.set_webhook(WEBHOOK_URL)
-
 if __name__ == "__main__":
-    app = web.Application()
-    app.router.add_post(f"/{TOKEN}", handle_webhook)
-    
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(on_startup())
-    
-    web.run_app(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    asyncio.run(start_app())

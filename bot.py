@@ -29,7 +29,7 @@ async def start_handler(message: types.Message):
         "Welcome to our service! 🚗\n\n"
         "We specialize in professional automotive solutions for European customers. "
         "Our process is transparent, secure, and fast.\n\n"
-        "1. Select your service: Hyundai VIN to PIN (2017-2026).\n"
+        "1. Select your service: Kia/Hyundai VIN to PIN (2017-2026).\n"
         "2. Complete the secure cryptocurrency payment via MaxelPay.\n"
         "3. Provide your VIN number for processing.\n"
         "4. Receive your access PIN-code instantly (15-60 min).\n\n"
